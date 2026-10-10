@@ -1,0 +1,26 @@
+<!doctype html><meta charset="utf-8"><title>OCS MOOC 回归（模拟页面，不提交课程）</title>
+<style>body{font:16px sans-serif;max-width:850px;margin:30px auto}section{padding:12px;border-bottom:1px solid #ddd}textarea{width:90%;height:40px}#status{white-space:pre-wrap}</style>
+<h1>MOOC 顺序答题回归</h1><p>真实 OCSWorker + Responses 解析器；模拟上游，不连接课程、不保存/提交。</p>
+<button id="start">运行回归</button><pre id="status">未开始</pre>
+<section class="u-questionItem"><h3>单选题 A</h3><ul class="choices"><li><label><input type="radio" name="q1">选项甲</label></li><li><label><input type="radio" name="q1">选项乙</label></li></ul></section>
+<section class="u-questionItem"><h3>多选题 B</h3><ul class="choices"><li><label><input type="checkbox">选项一</label></li><li><label><input type="checkbox">选项二</label></li></ul></section>
+<section class="u-questionItem"><h3>判断题</h3><ul class="choices"><li><label><input type="radio" name="q3">错</label></li><li><label><input type="radio" name="q3">对</label></li></ul></section>
+<section class="u-questionItem"><h3>双空填空题 C</h3><div class="inputArea"><input type="text"><textarea></textarea></div></section>
+<section class="u-questionItem"><h3>简答题 D</h3><div class="j-answer"><div class="ql-editor" contenteditable="true"></div></div></section>
+<script src="/core.js"></script><script>
+document.querySelector('#start').onclick=async()=>{
+const trace=[], roots=Array.from(document.querySelectorAll('.u-questionItem'));
+const worker=new OCS.OCSWorker({root:roots,sequential:true,elements:{title:'h3',options:'.choices li,.inputArea input,.inputArea textarea,.j-answer .ql-editor'},
+answerer:async(elements,ctx)=>{
+const index=roots.indexOf(ctx.root);trace.push('request:'+index);
+const res=await fetch('/ai/responses',{method:'POST',body:JSON.stringify({index,type:ctx.type})});const answer=await res.json();
+return [{name:'模拟AI',results:(ctx.type==='completion'?answer.answers:[JSON.stringify(answer.answers)]).map(a=>({question:elements.title[0].innerText,answer:a}))}];},
+work:{handler:async(type,answer,option,ctx)=>{
+trace.push('fill:'+roots.indexOf(ctx.root));
+if(type==='completion'){if('value' in option)option.value=answer;else option.innerText=answer;option.dispatchEvent(new Event('input',{bubbles:true}));}
+else option.querySelector('input').click();
+}},onResultsUpdate:()=>{document.querySelector('#status').textContent=trace.join('\n');}});
+try{const results=await worker.doWork();const checks=[roots[0].querySelectorAll('input')[1].checked,Array.from(roots[1].querySelectorAll('input')).every(x=>x.checked),roots[2].querySelectorAll('input')[1].checked,roots[3].querySelector('input').value==='填充值甲'&&roots[3].querySelector('textarea').value==='填充值乙',roots[4].querySelector('.ql-editor').innerText==='这是用于验证富文本填写的模拟答复。'];
+document.querySelector('#status').textContent=JSON.stringify({passed:checks.every(Boolean)&&results.every(r=>r.result.finish),checks,trace},null,2);
+}catch(e){document.querySelector('#status').textContent=e.message;}
+};</script>

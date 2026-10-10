@@ -1,0 +1,28 @@
+<!doctype html><meta charset="utf-8"><title>MOOC 视频控制器回归</title>
+<style>body{font:16px sans-serif;margin:30px auto;max-width:850px}video{width:480px;height:270px}#status{white-space:pre-wrap}.u-questionItem{padding:20px;background:#fff0c0}</style>
+<h1>MOOC 视频控制器回归</h1><p>使用生产控制器和真实视频元素；视频流由本地画布生成，不连接课程、不提交答案。</p>
+<button id="start">运行播放/弹题回归</button><pre id="status">未开始</pre>
+<div class="j-unitctBox"><video muted controls></video><div class="u-questionItem" hidden>模拟弹出的题目</div></div>
+<canvas width="480" height="270" hidden></canvas>
+<script type="module">
+import {createMOOCStudyController} from '/study.js';
+const sleep=ms=>new Promise(r=>setTimeout(r,ms));
+document.querySelector('#start').onclick=async()=>{
+const status=document.querySelector('#status'),q=document.querySelector('.u-questionItem'),video=document.querySelector('video');
+const canvas=document.querySelector('canvas'),ctx=canvas.getContext('2d');let frame=0;
+const draw=setInterval(()=>{ctx.fillStyle='#163a55';ctx.fillRect(0,0,480,270);ctx.fillStyle='white';ctx.font='24px sans-serif';ctx.fillText('OCS 本地视频测试 '+frame++,50,140)},100);
+const stream=canvas.captureStream(10);video.srcObject=stream;let requests=0,enabled=false;
+const checks=[];const check=(name,ok)=>{checks.push({name,ok});status.textContent=JSON.stringify(checks,null,2)};
+const stop=createMOOCStudyController({canRun:()=>true,playbackRate:()=>1,volume:()=>0,autoAnswer:()=>enabled,onQuestion:async()=>requests++});
+try{
+await video.play();await sleep(300);check('初始播放',!video.paused);
+q.hidden=false;await sleep(200);check('弹题自动暂停（AI关闭）',video.paused&&requests===0);
+await video.play();await sleep(100);check('弹题期间阻止抢播',video.paused);
+enabled=true;q.classList.add('trigger');await sleep(200);q.classList.add('second');await sleep(100);check('同一弹题只处理一次',requests===1);
+q.hidden=true;await sleep(200);check('关闭弹题后恢复脚本暂停',!video.paused);
+video.pause();await sleep(600);check('尊重手动暂停',video.paused);
+q.hidden=false;await sleep(100);q.hidden=true;await sleep(100);check('手动暂停不会被弹题结束覆盖',video.paused);
+location.hash='left';await sleep(100);q.hidden=false;await video.play();await sleep(100);check('页面离开后释放监听',!video.paused);
+status.textContent=JSON.stringify({passed:checks.every(c=>c.ok),checks},null,2);
+}catch(e){status.textContent=e.message}finally{stop();video.pause();clearInterval(draw);stream.getTracks().forEach(t=>t.stop());}
+};</script>
